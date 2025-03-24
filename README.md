@@ -1,4 +1,4 @@
-# TabPFN
+# TabPFN AFS
 
 [![PyPI version](https://badge.fury.io/py/tabpfn.svg)](https://badge.fury.io/py/tabpfn)
 [![Downloads](https://pepy.tech/badge/tabpfn)](https://pepy.tech/project/tabpfn)
@@ -27,15 +27,7 @@ CUDA optimization.
 > No GPU? Use our free hosted inference via [TabPFN Client](https://github.com/PriorLabs/tabpfn-client).
 
 ### Installation
-Official installation (pip)
-```bash
-pip install tabpfn
-```
-OR installation from source
-```bash
-pip install "tabpfn @ git+https://github.com/PriorLabs/TabPFN.git"
-```
-OR local development installation
+local development installation
 ```bash
 
 git clone https://github.com/tentacool9/TabPFN_AFS
