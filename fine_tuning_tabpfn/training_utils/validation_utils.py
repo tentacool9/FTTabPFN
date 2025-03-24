@@ -4,13 +4,13 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import torch
-from finetuning_scripts.constant_utils import SupportedDevice, TaskType
+from fine_tuning_tabpfn.constant_utils import SupportedDevice, TaskType
 from sklearn.model_selection import train_test_split
 import torch.nn as nn
 if TYPE_CHECKING:
     import numpy as np
     import pandas as pd
-    from finetuning_scripts.metric_utils.ag_metrics import Scorer
+    from fine_tuning_tabpfn.metric_utils.ag_metrics import Scorer
     from tabpfn.model.transformer import PerFeatureTransformer
 
 

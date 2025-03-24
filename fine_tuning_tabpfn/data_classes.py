@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from finetuning_scripts.training_utils.ag_early_stopping import AdaptiveES
+    from fine_tuning_tabpfn.training_utils.ag_early_stopping import AdaptiveES
     from torch.optim.optimizer import Optimizer
 
 

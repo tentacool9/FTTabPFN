@@ -16,17 +16,17 @@ import pandas as pd
 import torch
 import wandb
 
-from finetuning_scripts.constant_utils import (
+from fine_tuning_tabpfn.constant_utils  import (
     SupportedDevice,
     SupportedValidationMetric,
     TaskType,
 )
-from finetuning_scripts.data_classes import FineTuneSetup, FineTuneStepResults
-from finetuning_scripts.metric_utils.ag_metrics import get_metric
-from finetuning_scripts.training_utils.ag_early_stopping import AdaptiveES
-from finetuning_scripts.training_utils.data_utils import get_data_loader
-from finetuning_scripts.training_utils.training_loss import compute_loss, get_loss
-from finetuning_scripts.training_utils.validation_utils import validate_tabpfn
+from fine_tuning_tabpfn.data_classes import FineTuneSetup, FineTuneStepResults
+from fine_tuning_tabpfn.metric_utils.ag_metrics import get_metric
+from fine_tuning_tabpfn.training_utils.ag_early_stopping import AdaptiveES
+from fine_tuning_tabpfn.training_utils.data_utils import get_data_loader
+from fine_tuning_tabpfn.training_utils.training_loss import compute_loss, get_loss
+from fine_tuning_tabpfn.training_utils.validation_utils import validate_tabpfn
 from schedulefree import AdamWScheduleFree
 from tabpfn.base import load_model_criterion_config
 from torch import autocast
@@ -49,7 +49,7 @@ warnings.filterwarnings(
 )
 
 
-def fine_tune_tabpfn_original(
+def fine_tune_tabpfn(
     *,
     path_to_base_model: Path | Literal["auto"] = "auto",
     save_path_to_fine_tuned_model: Path,
@@ -174,7 +174,7 @@ def fine_tune_tabpfn_original(
     if not create_val_data:
         n_samples += len(X_val)
     else:
-        from finetuning_scripts.training_utils.validation_utils import create_val_data
+        from .training_utils.validation_utils import create_val_data
 
         X_train, X_val, y_train, y_val = create_val_data(
             X_train=X_train,

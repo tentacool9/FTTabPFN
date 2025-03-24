@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
-from finetuning_scripts.constant_utils import TaskType
+from fine_tuning_tabpfn.constant_utils import TaskType
 from tabpfn.model.bar_distribution import FullSupportBarDistribution
 
 if TYPE_CHECKING:

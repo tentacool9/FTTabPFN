@@ -4,8 +4,7 @@ setup(
     name='afstabpfn',
     version='2.0.7',
     python_requires='>=3.9',
-    packages=find_packages(where='src'),
-    package_dir={'': 'src'},
+    packages=find_packages(),  # Automatically discovers all packages recursively
     install_requires=[
         "torch>=2.1,<3",
         "scikit-learn>=1.2.0,<1.7",
@@ -48,7 +47,6 @@ setup(
     author='Noah Hollmann, Samuel Müller, Lennart Purucker, Arjun Krishnakumar, Max Körfer, Shi Bin Hoo, Robin Tibor Schirrmeister, Frank Hutter, Eddie Bergman, Leo Grinsztajn',
     author_email='noah.hollmann@charite.de, muellesa@cs.uni-freiburg.de, fh@cs.uni-freiburg.de',
     description='TabPFN: Foundation model for tabular data',
-    long_description=open("README.md").read(),
     long_description_content_type='text/markdown',
     url='https://github.com/priorlabs/tabpfn',
 )

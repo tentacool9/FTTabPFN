@@ -21,8 +21,8 @@ try:
 except:
     from sklearn.metrics.classification import type_of_target
 
-from finetuning_scripts.constant_utils import TaskType
-from finetuning_scripts.metric_utils import (
+from fine_tuning_tabpfn.constant_utils import TaskType
+from fine_tuning_tabpfn.metric_utils import (
     ag_classification_metrics as classification_metrics,
 )
 
