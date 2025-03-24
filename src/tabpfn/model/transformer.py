@@ -401,6 +401,7 @@ class PerFeatureTransformer(nn.Module):
         if args == () and all(k in kwargs for k in ("train_x", "train_y", "test_x")):
             assert "single_eval_pos" not in kwargs
             x = kwargs.pop("train_x")
+
             train_y = kwargs.pop("train_y")
             test_x = kwargs.pop("test_x")
             if test_x is not None:
@@ -408,11 +409,15 @@ class PerFeatureTransformer(nn.Module):
             return self._forward(x, train_y, single_eval_pos=len(train_y), **kwargs)
 
         if len(args) == 2:
+
             x, y = args
+
             return self._forward(x, y, **kwargs)
 
         if len(args) == 3:
+
             style, x, y = args
+
             return self._forward(x, y, style=style, **kwargs)
 
         raise ValueError("Unrecognized input. Please follow the doc string.")
@@ -447,6 +452,8 @@ class PerFeatureTransformer(nn.Module):
         Returns:
             A dictionary of output tensors.
         """
+
+
         assert style is None
         if self.cache_trainset_representation:
             if not single_eval_pos:  # none or 0
@@ -454,7 +461,6 @@ class PerFeatureTransformer(nn.Module):
         else:
             assert y is not None
             assert single_eval_pos
-
         single_eval_pos_ = single_eval_pos or 0
         if isinstance(x, dict):
             assert "main" in set(x.keys()), f"Main must be in input keys: {x.keys()}."

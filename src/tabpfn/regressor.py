@@ -35,7 +35,6 @@ from sklearn.base import (
 )
 
 from tabpfn.base import (
-    check_cpu_warning,
     create_inference_engine,
     determine_precision,
     initialize_tabpfn_model,
@@ -55,7 +54,6 @@ from tabpfn.utils import (
     _fix_dtypes,
     _get_embeddings,
     _get_ordinal_encoder,
-    _process_text_na_dataframe,
     _transform_borders_one,
     infer_categorical_features,
     infer_device_and_type,
@@ -402,7 +400,7 @@ class TabPFNRegressor(RegressorMixin, BaseEstimator):
         tags.estimator_type = "regressor"
         return tags
 
-    @config_context(transform_output="default")  # type: ignore
+    @config_context(transform_output="default")
     def fit(self, X: XType, y: YType) -> Self:
         """Fit the model.
 
@@ -456,7 +454,6 @@ class TabPFNRegressor(RegressorMixin, BaseEstimator):
             ignore_pretraining_limits=self.ignore_pretraining_limits,
         )
         assert isinstance(X, np.ndarray)
-        check_cpu_warning(self.device, X)
 
         if feature_names_in is not None:
             self.feature_names_in_ = feature_names_in
@@ -468,7 +465,7 @@ class TabPFNRegressor(RegressorMixin, BaseEstimator):
 
         # Ensure categories are ordinally encoded
         ord_encoder = _get_ordinal_encoder()
-        X = _process_text_na_dataframe(X, ord_encoder=ord_encoder, fit_encoder=True)  # type: ignore
+        X = ord_encoder.fit_transform(X)  # type: ignore
         self.preprocessor_ = ord_encoder
 
         self.inferred_categorical_indices_ = infer_categorical_features(
@@ -581,7 +578,7 @@ class TabPFNRegressor(RegressorMixin, BaseEstimator):
     ) -> FullOutputDict: ...
 
     # FIXME: improve to not have noqa C901, PLR0912
-    @config_context(transform_output="default")  # type: ignore
+    @config_context(transform_output="default")
     def predict(  # noqa: C901, PLR0912
         self,
         X: XType,
@@ -628,7 +625,7 @@ class TabPFNRegressor(RegressorMixin, BaseEstimator):
 
         X = validate_X_predict(X, self)
         X = _fix_dtypes(X, cat_indices=self.categorical_features_indices)
-        X = _process_text_na_dataframe(X, ord_encoder=self.preprocessor_)  # type: ignore
+        X = self.preprocessor_.transform(X)
 
         if quantiles is None:
             quantiles = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]

@@ -567,10 +567,8 @@ def fit_preprocessing_one(
     else:
         X_train = X_train.copy()
         y_train = y_train.copy()
-
     preprocessor = config.to_pipeline(random_state=static_seed)
     res = preprocessor.fit_transform(X_train, cat_ix)
-
     # TODO(eddiebergman): Not a fan of this, wish it was more transparent, but we want
     # to distuinguish what to do with the `ys` based on the ensemble config type
     if isinstance(config, RegressorEnsembleConfig):

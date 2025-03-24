@@ -185,7 +185,6 @@ class InferenceEngineOnDemand(InferenceEngine):
                 y_train = y_train.type(self.force_inference_dtype)  # type: ignore  # noqa: PLW2901
 
             style = None
-
             with (
                 torch.autocast(device.type, enabled=autocast),
                 torch.inference_mode(),
@@ -299,7 +298,6 @@ class InferenceEngineCachePreprocessing(InferenceEngine):
             self.cat_ixs,
         ):
             X_train = torch.as_tensor(X_train, dtype=torch.float32, device=device)  # noqa: PLW2901
-
             X_test = preprocessor.transform(X).X
             X_test = torch.as_tensor(X_test, dtype=torch.float32, device=device)
 
