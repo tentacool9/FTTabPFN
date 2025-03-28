@@ -1,4 +1,4 @@
-# TabPFN
+# TabPFN AFS
 
 [![PyPI version](https://badge.fury.io/py/tabpfn.svg)](https://badge.fury.io/py/tabpfn)
 [![Downloads](https://pepy.tech/badge/tabpfn)](https://pepy.tech/project/tabpfn)
@@ -27,46 +27,63 @@ CUDA optimization.
 > No GPU? Use our free hosted inference via [TabPFN Client](https://github.com/PriorLabs/tabpfn-client).
 
 ### Installation
-Official installation (pip)
-```bash
-pip install tabpfn
-```
-OR installation from source
-```bash
-pip install "tabpfn @ git+https://github.com/PriorLabs/TabPFN.git"
-```
-OR local development installation
+local development installation
 ```bash
 
-git clone https://github.com/PriorLabs/TabPFN.git
-pip install -e "TabPFN[dev]"
+git clone https://github.com/tentacool9/TabPFN_AFS
+cd TabPFN_AFS
+pip install -e . 
 ```
 
 ### Basic Usage
 
 #### Classification
 ```python
-from sklearn.datasets import load_breast_cancer
-from sklearn.metrics import accuracy_score, roc_auc_score
-from sklearn.model_selection import train_test_split
-
+from fine_tuning_tabpfn.finetune_tabpfn import fine_tune_tabpfn
+from tabpfn.model.gatedtransformerv2 import GatedPerFeatureTransformer
 from tabpfn import TabPFNClassifier
+from fine_tuning_tabpfn.finetune_tabpfn import fine_tune_tabpfn
+from sklearn.datasets import load_iris, load_wine, fetch_openml,load_digits
+from sklearn.metrics import log_loss
+from sklearn.model_selection import train_test_split
+from tabpfn.classifier import TabPFNClassifier
+from sklearn.metrics import accuracy_score,precision_score,recall_score
+import numpy as np
+import pandas as pd
 
 # Load data
-X, y = load_breast_cancer(return_X_y=True)
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5, random_state=42)
+X, y = load_wine(return_X_y=True, as_frame=True)
+X_train, X_test, y_train, y_test = train_test_split(
+    X,
+    y,
+    test_size=0.33,
+    random_state=42,
+)
 
-# Initialize a classifier
-clf = TabPFNClassifier()
-clf.fit(X_train, y_train)
 
-# Predict probabilities
-prediction_probabilities = clf.predict_proba(X_test)
-print("ROC AUC:", roc_auc_score(y_test, prediction_probabilities[:, 1]))
 
-# Predict labels
-predictions = clf.predict(X_test)
-print("Accuracy", accuracy_score(y_test, predictions))
+
+# Finetune
+save_path_to_fine_tuned_model = "./fine_tuned_model_new_24_03_gated.ckpt"
+fine_tune_tabpfn(
+    path_to_base_model="auto",
+    save_path_to_fine_tuned_model=save_path_to_fine_tuned_model,
+    # Finetuning HPs
+    time_limit=100,
+    finetuning_config={"learning_rate": 0.00001, "batch_size": 8,"min_patience": 30,"max_patience": 100},
+    validation_metric="log_loss",
+    # Input Data
+    X_train=X_train,
+    y_train=y_train,
+    categorical_features_index=None,
+    device="cuda",  # use "cpu" if you don't have a GPU
+    task_type="multiclass",
+    gated=True,
+    # Optional
+    show_training_curve=True,  # Shows a final report after finetuning.
+    logger_level=-100,  # Shows all logs, higher values shows less
+    use_wandb=False,  # Init wandb yourself, and set to True
+)
 ```
 
 #### Regression
