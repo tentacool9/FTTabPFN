@@ -521,5 +521,6 @@ class GatedPerFeatureTransformer(PerFeatureTransformer):
         else:
             print(
                 "Warning: No sample gate parameters found in state_dict; using random initialization for sample_gate.")
+        print("Loaded gating model for input")
 
         return self

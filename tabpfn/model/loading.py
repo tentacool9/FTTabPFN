@@ -29,8 +29,8 @@ from tabpfn.model.encoders import (
     SequentialEncoder,
     VariableNumFeaturesEncoderStep,
 )
-# from tabpfn.model.gatedtransformer import GatedPerFeatureTransformer
-from tabpfn.model.gatedtransformerv2 import GatedPerFeatureTransformer
+from tabpfn.model.gatedtransformer import GatedPerFeatureTransformer
+# from tabpfn.model.gatedtransformerv2 import GatedPerFeatureTransformer
 from tabpfn.model.transformer import PerFeatureTransformer
 
 logger = logging.getLogger(__name__)
