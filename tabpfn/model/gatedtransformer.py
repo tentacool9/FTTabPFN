@@ -384,6 +384,7 @@ class GatedPerFeatureTransformer(PerFeatureTransformer):
         embedded_input = torch.cat((embedded_x, embedded_y.unsqueeze(2)), dim=2)
 
         gated, gate_feat, _ = self.feature_gate(embedded_input, train_gates=self.training)
+
         # Apply sample gating.
         # gated, gate_sample, _ = self.sample_gate(gated, train_gates=self.training)
         embedded_input = gated
