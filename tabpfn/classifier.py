@@ -150,6 +150,7 @@ class TabPFNClassifier(ClassifierMixin, BaseEstimator):
         random_state: int | np.random.RandomState | np.random.Generator | None = 0,
         n_jobs: int = -1,
         gated: bool = False,
+        extra_configuration=None,
         inference_config: dict | ModelInterfaceConfig | None = None,
     ) -> None:
         """A TabPFN interface for classification.
@@ -363,6 +364,7 @@ class TabPFNClassifier(ClassifierMixin, BaseEstimator):
         self.n_jobs = n_jobs
         self.inference_config = inference_config
         self.gated = gated
+        self.extra_configuration = extra_configuration
 
     # TODO: We can remove this from scikit-learn lower bound of 1.6
     def _more_tags(self) -> dict[str, Any]:
@@ -393,7 +395,8 @@ class TabPFNClassifier(ClassifierMixin, BaseEstimator):
             which="classifier",
             fit_mode=self.fit_mode,
             static_seed=static_seed,
-            gated=self.gated
+            gated=self.gated,
+            extra_configuration=self.extra_configuration
         )
 
         # Determine device and precision
