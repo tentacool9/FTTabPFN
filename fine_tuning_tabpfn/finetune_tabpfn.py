@@ -69,6 +69,7 @@ def fine_tune_tabpfn(
     y_val: pd.Series | None = None,
     random_seed: int = 42,
     gated: bool = False,
+    extra_configuration=None,
     # Other
     logger_level: int = 20,
     show_training_curve: bool = False,
@@ -155,7 +156,8 @@ def fine_tune_tabpfn(
         version="v2",
         download=True,
         model_seed=random_seed,
-        gated=gated
+        gated=gated,
+        extra_configuration=extra_configuration
     )
     model.criterion = criterion
     checkpoint_config = checkpoint_config.__dict__

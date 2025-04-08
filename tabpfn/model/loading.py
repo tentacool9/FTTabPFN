@@ -29,8 +29,8 @@ from tabpfn.model.encoders import (
     SequentialEncoder,
     VariableNumFeaturesEncoderStep,
 )
-from tabpfn.model.gatedtransformer import GatedPerFeatureTransformer
-# from tabpfn.model.gatedtransformerv2 import GatedPerFeatureTransformer
+# from tabpfn.model.gatedtransformer import GatedPerFeatureTransformer
+from tabpfn.model.gatedtransformerv2 import GatedPerFeatureTransformer
 from tabpfn.model.transformer import PerFeatureTransformer
 
 logger = logging.getLogger(__name__)
@@ -406,7 +406,8 @@ def load_model(
     *,
     path: Path,
     model_seed: int,
-    gated: bool = False
+    gated: bool = False,
+    extra_configuration=None
 ) -> tuple[
     PerFeatureTransformer,
     nn.BCEWithLogitsLoss | nn.CrossEntropyLoss | FullSupportBarDistribution,
@@ -471,6 +472,7 @@ def load_model(
     if gated:
 
         model = GatedPerFeatureTransformer(
+            extra_configuration=extra_configuration,
             seed=model_seed,
             # Things that were explicitly passed inside `build_model()`
             encoder=get_encoder(
@@ -535,6 +537,7 @@ def load_model(
                 if config.two_sets_of_queries is not None
                 else False
             ),
+
         )
 
         model.load_state_dict(state_dict)

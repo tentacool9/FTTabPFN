@@ -61,7 +61,8 @@ def initialize_tabpfn_model(
     which: Literal["classifier", "regressor"],
     fit_mode: Literal["low_memory", "fit_preprocessors", "fit_with_cache"],
     static_seed: int,
-    gated: bool = False
+    gated: bool = False,
+    extra_configuration = None
 ) -> tuple[PerFeatureTransformer, InferenceConfig, FullSupportBarDistribution | None]:
     """Common logic to load the TabPFN model, set up the random state,
     and optionally download the model.
@@ -94,7 +95,8 @@ def initialize_tabpfn_model(
             version="v2",
             download=download,
             model_seed=static_seed,
-            gated=gated
+            gated=gated,
+            extra_configuration=extra_configuration
         )
         bar_distribution = None
     else:

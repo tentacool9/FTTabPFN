@@ -332,6 +332,7 @@ def load_model_criterion_config(
     download: bool,
     model_seed: int,
     gated: bool = False,
+    extra_configuration = None
 ) -> tuple[
     PerFeatureTransformer,
     nn.BCEWithLogitsLoss | nn.CrossEntropyLoss | FullSupportBarDistribution,
@@ -406,7 +407,8 @@ def load_model_criterion_config(
                 f"Then place it at: {model_path}",
             ) from res[0]
 
-    loaded_model, criterion, config = load_model(path=model_path, model_seed=model_seed, gated=gated)
+    loaded_model, criterion, config = load_model(path=model_path, model_seed=model_seed, gated=gated,
+                                                 extra_configuration=extra_configuration)
     loaded_model.cache_trainset_representation = cache_trainset_representation
     if check_bar_distribution_criterion and not isinstance(
         criterion,

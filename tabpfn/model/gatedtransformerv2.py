@@ -7,11 +7,13 @@ from functorch import einops
 from tabpfn.model.encoders import SequentialEncoder
 from tabpfn.model.transformer import PerFeatureTransformer
 import torch.nn.functional as F
+
 MAX_FEATURES = 100
+
 
 class DebugInfo:
     _instance = None  # Singleton instance
-    _data = {}        # Dictionary to store debug data
+    _data = {}  # Dictionary to store debug data
 
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
@@ -33,85 +35,9 @@ class DebugInfo:
         """Prints all stored debug information."""
         print("[DEBUG INFO] =>", cls._data)
 
-class LearnedSampleGating(nn.Module):
-    def __init__(self, input_dim, hidden_dims=[64, 32], a=1.0, sigma=0.5):
-        """
-        Args:
-            input_dim (int): The dimension of the input feature vector for each sample.
-            hidden_dims (list of int): Hidden dimensions for the gating network.
-            a (float): Scaling parameter in the hard sigmoid.
-            sigma (float): Standard deviation for the Gaussian noise.
-        """
-        super(LearnedSampleGating, self).__init__()
-        self.a = a
-        self.sigma = sigma
-
-        # Build the gating network: it processes each sample's feature vector and outputs a scalar.
-        layers = []
-        prev_dim = input_dim
-        for h_dim in hidden_dims:
-            layers.append(nn.Linear(prev_dim, h_dim))
-            layers.append(nn.ReLU())
-            prev_dim = h_dim
-
-        # Fully connected layers to compute an intermediate representation.
-        self.fc = nn.Sequential(*layers)
-        # Final layer to produce one raw gate value (alpha) per sample.
-        self.gate_fc = nn.Linear(prev_dim, 1)
-
-    def hard_sigmoid(self, x):
-        """
-        Hard sigmoid: a piecewise linear approximation of the sigmoid function.
-        Computes: f(x) = clip(a * x + 0.5, 0, 1)
-        """
-        return torch.clamp(self.a * x + 0.5, min=0.0, max=1.0)
-
-    def forward(self, x):
-        """
-        Forward pass of the sample gating mechanism.
-
-        Args:
-            x (torch.Tensor): Input tensor of shape (n, 1, dim) where n is the number of samples.
-            train_gates (bool): If True, add noise for stochastic gating (used during training).
-
-        Returns:
-            x_gated (torch.Tensor): The gated sample feature vectors of shape (n, 1, dim) (each sample is scaled).
-            gate (torch.Tensor): The gating values (in [0,1]) for each sample, shape (n, 1).
-            raw_gate (torch.Tensor): The raw output (alpha) before noise and activation, shape (n, 1).
-            weighted_sum (torch.Tensor): A combined representation computed as the weighted sum of sample features,
-                                         following the operation: row vector (1 x n) * Identity (n x n) * X,
-                                         yielding shape (1, dim).
-        """
-        # (batch ,seq_len, features_per_group, embedding)
-
-        seq,batch,dim = x.size()
-        x_flat = x.reshape(batch, seq, dim)
-
-        # Compute an intermediate representation and then a raw gate value per sample.
-        hidden = self.fc(x_flat)  # shape: (batch,seq, hidden_dim)
-        raw_gate = self.gate_fc(hidden)  # shape: (batch, seq, 1)
-
-        # Optionally add Gaussian noise to encourage exploration during training.
-        if self.training:
-            noise = torch.randn_like(raw_gate)
-            raw_gate = raw_gate + self.sigma * noise
-
-        # Pass through the hard sigmoid to obtain a gating value between 0 and 1.
-        gate = self.hard_sigmoid(raw_gate)  # shape: (batch, seq , 1)
-
-        # Apply the sample gate to each sample's feature vector.
-        # This is equivalent to forming a diagonal matrix from the gate vector and multiplying:
-        # x_gated = diag(gate) * x_flat.
-        x_gated = gate * x_flat  # shape: (batch, seq, dim)
-
-        # Reshape x_gated back to (n, 1, dim) if needed.
-        x_gated = x_gated.reshape(seq,batch, dim)
-
-        return x_gated, gate.reshape(seq, batch, 1), raw_gate
-
 
 class LearnedFeatureGating(nn.Module):
-    def __init__(self, input_dim, gating_hidden_dims=[64, 32], a=1.0, sigma=0.5):
+    def __init__(self, input_dim, gating_hidden_dims=[256,128], shrink_dim=64, a=1.0, sigma=0.5):
         """
         Args:
             input_dim (int): The dimension of the input features.
@@ -122,19 +48,21 @@ class LearnedFeatureGating(nn.Module):
         super(LearnedFeatureGating, self).__init__()
         self.a = a
         self.sigma = sigma
-
+        self.shrink_dim = shrink_dim
         # Build the gating network: a series of fully connected layers
         layers = []
         prev_dim = input_dim
         for h_dim in gating_hidden_dims:
             layers.append(nn.Linear(prev_dim, h_dim))
-            # layers.append(nn.ReLU())  # Activation; can be modified as needed.
+            layers.append(nn.ReLU())  # Activation; can be modified as needed.
             prev_dim = h_dim
 
         # The gating network's hidden layers
         self.gating_layers = nn.Sequential(*layers)
         # Final layer to produce raw gate values (alpha) for each feature
         self.alpha_layer = nn.Linear(prev_dim, input_dim)
+
+        self.shrinking_layer = nn.Linear(input_dim, shrink_dim)
 
     def hard_sigmoid(self, x):
         """
@@ -156,7 +84,7 @@ class LearnedFeatureGating(nn.Module):
             gate (torch.Tensor): The gating values (in [0,1]) for each feature.
             alpha (torch.Tensor): The raw output from the gating network (before noise and activation).
         """
-        seq,batch,dim = x.size()
+        seq, batch, dim = x.size()
         x_flat = x.reshape(batch, seq, dim)
 
         # (seq_len, batch_size, hidden_dim)
@@ -175,7 +103,8 @@ class LearnedFeatureGating(nn.Module):
         gate = self.hard_sigmoid(z)  # Shape: (batch,seq, dim)
         gate = gate.view(batch, seq, dim)
         gated_x = x_flat * gate
-        gated_x = gated_x.reshape(seq, batch, dim)
+        gated_x = self.shrinking_layer(gated_x)
+        gated_x = gated_x.reshape(seq, batch, self.shrink_dim)
 
         return gated_x, gate, alpha
 
@@ -183,6 +112,7 @@ class LearnedFeatureGating(nn.Module):
 class GatedPerFeatureTransformer(PerFeatureTransformer):
     def __init__(
             self,
+            extra_configuration=None,
             **kwargs,  # Other parameters for PerFeatureTransformer
     ):
         """
@@ -197,23 +127,25 @@ class GatedPerFeatureTransformer(PerFeatureTransformer):
         super().__init__(**kwargs)
         # Instantiate gating modules that expect batch-first data.
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.feature_gate = LearnedFeatureGating(MAX_FEATURES,
-                                                 **({"gating_hidden_dims": [50, 25], "a": 1.0, "sigma": 0.5}))
-        self.sample_gate = LearnedSampleGating(MAX_FEATURES, **({"hidden_dims": [50, 25], "a": 1.0, "sigma": 0.5}))
+        if extra_configuration.get('num_features_input',None):
+            self.feature_gate = LearnedFeatureGating(input_dim=extra_configuration.get('num_features_input',None),
+                                                     shrink_dim=extra_configuration.get('shrink_dim',8))
+        else:
+            raise Exception("Must have number of features when using this gated model")
 
     def _forward(  # noqa: PLR0912, C901
-        self,
-        x: torch.Tensor | dict,
-        # TODO(eddiebergman): Not sure if it can be None but the function seems to
-        # indicate it could
-        y: torch.Tensor | dict | None,
-        *,
-        single_eval_pos: int | None = None,
-        only_return_standard_out: bool = True,
-        style: torch.Tensor | None = None,
-        data_dags: list[Any] | None = None,
-        categorical_inds: list[int] | None = None,
-        half_layers: bool = False,
+            self,
+            x: torch.Tensor | dict,
+            # TODO(eddiebergman): Not sure if it can be None but the function seems to
+            # indicate it could
+            y: torch.Tensor | dict | None,
+            *,
+            single_eval_pos: int | None = None,
+            only_return_standard_out: bool = True,
+            style: torch.Tensor | None = None,
+            data_dags: list[Any] | None = None,
+            categorical_inds: list[int] | None = None,
+            half_layers: bool = False,
     ) -> Any | dict[str, torch.Tensor]:
         """The core forward pass of the model.
 
@@ -234,18 +166,9 @@ class GatedPerFeatureTransformer(PerFeatureTransformer):
         #
         # deb = DebugInfo()
         # deb.orig_x = x
-        orig_dim = x.shape[2]
-        padding = torch.zeros(x.shape[0], x.shape[1], MAX_FEATURES-orig_dim).to(self.device)
-        x = torch.cat([x,padding],dim=2)
-        gated, gate_feat, _ = self.feature_gate(x)
-        # # Apply sample gating.
-        # gated, gate_sample, _ = self.sample_gate(gated, train_gates=self.training)
-        # y = gate_sample[y.shape[0]:,:,:] * y
-        # deb.y = y
-        x = gated
-        x= x[:,:,:orig_dim]
 
-
+        x, gate_feat, _ = self.feature_gate(x)
+        x = x.to(dtype=torch.float32)
 
         assert style is None
         if self.cache_trainset_representation:
@@ -280,8 +203,8 @@ class GatedPerFeatureTransformer(PerFeatureTransformer):
 
             # pad to multiple of features_per_group
             missing_to_next = (
-                self.features_per_group - (num_features_ % self.features_per_group)
-            ) % self.features_per_group
+                                      self.features_per_group - (num_features_ % self.features_per_group)
+                              ) % self.features_per_group
 
             if missing_to_next > 0:
                 x[k] = torch.cat(
@@ -334,8 +257,8 @@ class GatedPerFeatureTransformer(PerFeatureTransformer):
 
             if y[k].shape[1] < x["main"].shape[1]:
                 assert (
-                    y[k].shape[1] == single_eval_pos_
-                    or y[k].shape[1] == x["main"].shape[1]
+                        y[k].shape[1] == single_eval_pos_
+                        or y[k].shape[1] == x["main"].shape[1]
                 )
                 assert k != "main" or y[k].shape[1] == single_eval_pos_, (
                     "For main y, y must not be given for target"
@@ -377,15 +300,13 @@ class GatedPerFeatureTransformer(PerFeatureTransformer):
 
         extra_encoders_args = {}
         if categorical_inds_to_use is not None and isinstance(
-            self.encoder,
-            SequentialEncoder,
+                self.encoder,
+                SequentialEncoder,
         ):
             extra_encoders_args["categorical_inds"] = categorical_inds_to_use
 
         for k in x:
             x[k] = einops.rearrange(x[k], "b s f n -> s (b f) n")
-
-
 
         embedded_x = einops.rearrange(
             self.encoder(
@@ -399,8 +320,6 @@ class GatedPerFeatureTransformer(PerFeatureTransformer):
         )  # b s f 1 -> b s f e
         del x
 
-
-
         embedded_x, embedded_y = self.add_embeddings(
             embedded_x,
             embedded_y,
@@ -408,10 +327,10 @@ class GatedPerFeatureTransformer(PerFeatureTransformer):
             num_features=num_features,
             seq_len=seq_len,
             cache_embeddings=(
-                self.cache_trainset_representation and single_eval_pos is not None
+                    self.cache_trainset_representation and single_eval_pos is not None
             ),
             use_cached_embeddings=(
-                self.cache_trainset_representation and single_eval_pos is None
+                    self.cache_trainset_representation and single_eval_pos is None
             ),
         )
         del data_dags
@@ -487,10 +406,11 @@ class GatedPerFeatureTransformer(PerFeatureTransformer):
                         strict: bool = True,
                         assign: bool = False) -> Any:
         # Separate gating parameters from base model parameters
+        print("Loading GatedModelV2")
         gating_state = {}
         base_state = {}
         for key, value in state_dict.items():
-            if key.startswith("feature_gate.") or key.startswith("sample_gate."):
+            if key.startswith("feature_gate."):
                 gating_state[key] = value
             else:
                 base_state[key] = value
@@ -503,10 +423,6 @@ class GatedPerFeatureTransformer(PerFeatureTransformer):
             key[len("feature_gate."):]: value
             for key, value in gating_state.items() if key.startswith("feature_gate.")
         }
-        sample_gate_state = {
-            key[len("sample_gate."):]: value
-            for key, value in gating_state.items() if key.startswith("sample_gate.")
-        }
 
         # Load gating modules' state dictionaries if they are present.
         if len(feature_gate_state) > 0:
@@ -515,12 +431,8 @@ class GatedPerFeatureTransformer(PerFeatureTransformer):
         else:
             print(
                 "Warning: No feature gate parameters found in state_dict; using random initialization for feature_gate.")
-
-        if len(sample_gate_state) > 0:
-            self.sample_gate.load_state_dict(sample_gate_state, strict=False)
-        else:
-            print(
-                "Warning: No sample gate parameters found in state_dict; using random initialization for sample_gate.")
-        print("Loaded gating model for input")
+        for name, param in self.named_parameters():
+            if not (name.startswith("feature_gate.")):
+                param.requires_grad = False
 
         return self
