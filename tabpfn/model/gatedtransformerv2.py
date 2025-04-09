@@ -126,7 +126,9 @@ class GatedPerFeatureTransformer(PerFeatureTransformer):
         """
         super().__init__(**kwargs)
         # Instantiate gating modules that expect batch-first data.
+
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
         if extra_configuration.get('num_features_input',None):
             self.feature_gate = LearnedFeatureGating(input_dim=extra_configuration.get('num_features_input',None),
                                                      shrink_dim=extra_configuration.get('shrink_dim',8))

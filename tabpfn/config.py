@@ -141,7 +141,7 @@ class ModelInterfaceConfig:
     """The number of classes seen during pretraining for classification. If the
     number of classes is larger than this number, TabPFN requires an additional step
     to predict for more than classes."""
-    MAX_NUMBER_OF_FEATURES: int = 500
+    MAX_NUMBER_OF_FEATURES: int = 10000000
     """The number of features that the pretraining was intended for. If the number of
     features is larger than this number, you may see degraded performance. Note, this
     is not the number of features seen by the model during pretraining but also accounts
