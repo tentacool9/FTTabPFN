@@ -83,3 +83,46 @@ def compute_loss(
             raise ValueError(f"Loss of type {type(loss_fn)} not supported.")
 
     return loss_fn(input=logits, target=target)
+
+def compute_loss_with_sparsity(
+    *,
+    gates: torch.Tensor,
+    loss_fn: _Loss,
+    logits: torch.Tensor,
+    target: torch.Tensor,
+) -> torch.Tensor:
+    """Compute the loss of the model.
+
+    This methods selects the correct elements from the logits and target tensors based on the loss function.
+    This is essentially an adaptor for the output of the TabPFN model.
+
+    Arguments:
+    ----------
+    loss_fn: _Loss
+        The loss function to use.
+    logits: torch.Tensor
+        The logits of the model.
+            * For classification: (n_samples, batch_size, n_classes)
+            * For regression: (n_samples, batch_size, ?TODO?)
+    target: torch.Tensor (n_samples, batch_size, 1)
+        The target values.
+
+    Returns:
+    --------
+    loss: torch.Tensor
+
+        The loss tensor.
+    """
+    match loss_fn:
+        case torch.nn.modules.BCEWithLogitsLoss():
+            logits = logits[:, :, 1]  # select positive class logits only
+            target = target[:, :, 0]
+        case torch.nn.modules.CrossEntropyLoss():
+            logits = logits.reshape(-1, logits.shape[-1])
+            target = target.long().flatten()
+        case _ if isinstance(loss_fn, FullSupportBarDistribution):
+            return loss_fn(logits=logits, y=target[:, :, 0]).mean()
+        case _:
+            raise ValueError(f"Loss of type {type(loss_fn)} not supported.")
+
+    return loss_fn(input=logits, target=target)

@@ -14,48 +14,30 @@ if TYPE_CHECKING:
 
 
 class TabularDataset(Dataset):
-    """Tabular dataset.
-
-    This class is used to load tabular data.
-
-    Here one sample is equal to one split of the data.
-
-    Arguments:
-    ----------
-    X_train: torch.Tensor (n_samples, n_features)
-        Input features.
-    y_train: torch.Tensor (n_samples, 1)
-        Target labels.
-    max_steps: int
-        Maximum number of steps (splits of the data).
-    stratify_split: bool
-        Whether the task is classification or regression.
-    cross_val_splits: int
-        Number of cross-validation splits.
-    """
-
     def __init__(
         self,
         *,
-        X_train: torch.Tensor,
-        y_train: torch.Tensor,
+        datasets: list[tuple[torch.Tensor, torch.Tensor]],
         max_steps: int,
         is_classification: bool,
-        cross_val_splits: int | None = 10,
+        cross_val_splits: int = 10,
     ):
-        self.X_train = X_train
-        self.y_train = y_train
+        self.datasets = datasets
         self.max_steps = max_steps
         self.cross_val_splits = cross_val_splits
         self.is_classification = is_classification
-        self._splits_generator = self.splits_generator(
-            X_train=X_train,
-            y_train=y_train,
-            cross_val_splits=cross_val_splits,
-            stratify_split=is_classification,
-            seed=RANDOM_SEED,
-        )
         self._rng = np.random.RandomState(RANDOM_SEED)
+
+        self._split_generators = [
+            self.splits_generator(
+                X_train=X,
+                y_train=y,
+                cross_val_splits=cross_val_splits,
+                stratify_split=is_classification,
+                seed=RANDOM_SEED + i,  # ensure different seeds per dataset
+            )
+            for i, (X, y) in enumerate(datasets)
+        ]
 
     @staticmethod
     def splits_generator(
@@ -66,104 +48,62 @@ class TabularDataset(Dataset):
         stratify_split: bool,
         seed: int,
     ):
-        """Endless generator for splits to perform repeated cross-validation."""
         rng = np.random.RandomState(seed)
         splitter = StratifiedKFold if stratify_split else KFold
 
         while True:
             splits = splitter(
                 n_splits=cross_val_splits,
-                random_state=rng.random_integers(0, int(np.iinfo(np.int32).max)),
+                random_state=rng.randint(0, 1 << 30),
                 shuffle=True,
             ).split(
                 X=X_train,
-                y=y_train.cpu().detach().numpy() if stratify_split else None,
+                y=y_train.cpu().numpy() if stratify_split else None,
             )
             yield from splits
-
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        del state["_splits_generator"]
-        return state
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-        self._splits_generator = self.splits_generator(
-            X_train=self.X_train,
-            y_train=self.y_train,
-            cross_val_splits=self.cross_val_splits,
-            stratify_split=self.is_classification,
-            seed=RANDOM_SEED,
-        )
 
     def __len__(self):
         return self.max_steps
 
-    def get_splits(self) -> tuple[np.ndarray, np.ndarray]:
-        """Get train and test indices for next batch."""
-        train_idx, test_idx = next(self._splits_generator)
-        return train_idx, test_idx
-
     def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
-        train_idx, test_idx = self.get_splits()
+        dataset_idx = self._rng.randint(0, len(self.datasets))
+        X_train, y_train = self.datasets[dataset_idx]
+        train_idx, test_idx = next(self._split_generators[dataset_idx])
 
-        # Correct for equal batch size
-        expected_test_size = len(self.X_train) // self.cross_val_splits
+        expected_test_size = len(X_train) // self.cross_val_splits
         if len(test_idx) != expected_test_size:
-            train_idx = np.concatenate(
-                [train_idx, test_idx[: len(test_idx) - expected_test_size]],
-            )
+            train_idx = np.concatenate([train_idx, test_idx[: len(test_idx) - expected_test_size]])
             test_idx = test_idx[len(test_idx) - expected_test_size :]
 
         return dict(
-            X_train=self.X_train[train_idx],
-            X_test=self.X_train[test_idx],
-            y_train=self.y_train[train_idx],
-            y_test=self.y_train[test_idx],
+            X_train=X_train[train_idx],
+            X_test=X_train[test_idx],
+            y_train=y_train[train_idx],
+            y_test=y_train[test_idx],
         )
+
 
 
 def get_data_loader(
     *,
-    X_train: pd.DataFrame,
-    y_train: pd.Series,
+    Xs: list[pd.DataFrame],
+    ys: list[pd.Series],
     max_steps: int,
     torch_rng: torch.Generator,
     batch_size: int,
     is_classification: bool,
     num_workers: int,
 ) -> DataLoader:
-    """Get data loader.
+    datasets = [
+        (
+            torch.tensor(X.copy().values).float(),
+            torch.tensor(y.copy().values).reshape(-1, 1).float(),
+        )
+        for X, y in zip(Xs, ys)
+    ]
 
-    This function is used to get data loader.
-
-    Arguments:
-    ----------
-    X_train: pd.DataFrame
-        Input features.
-    y_train: pd.Series
-        Target labels.
-    max_steps: int
-        Maximum number of steps (splits of the data).
-    torch_rng: torch.Generator
-        Torch random number generator for splits and similar.
-    batch_size: int
-        Batch size. How many splits to load at a time.
-    is_classification: bool
-        Whether the task is classification or regression.
-    num_workers: int
-        Number of workers for data loader.
-
-    Returns:
-    --------
-    DataLoader
-        Data loader.
-    """
-    X_train = torch.tensor(X_train.copy().values).float()
-    y_train = torch.tensor(y_train.copy().values).reshape(-1, 1).float()
     dataset = TabularDataset(
-        X_train=X_train,
-        y_train=y_train,
+        datasets=datasets,
         max_steps=max_steps * batch_size,
         is_classification=is_classification,
     )

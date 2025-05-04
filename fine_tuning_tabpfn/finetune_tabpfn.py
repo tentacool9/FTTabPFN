@@ -176,7 +176,9 @@ def fine_tune_tabpfn(
     if not create_val_data:
         n_samples += len(X_val)
     else:
+
         from .training_utils.validation_utils import create_val_data
+        raise Exception("Must provide validation data!")
 
         X_train, X_val, y_train, y_val = create_val_data(
             X_train=X_train,
