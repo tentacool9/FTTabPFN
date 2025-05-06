@@ -28,17 +28,37 @@ class TabularDataset(Dataset):
         self.is_classification = is_classification
         self._rng = np.random.RandomState(RANDOM_SEED)
 
+        # store only the arguments needed to rebuild later
+        self._dataset_args = dict(
+            datasets=datasets,
+            max_steps=max_steps,
+            is_classification=is_classification,
+            cross_val_splits=cross_val_splits,
+        )
+        self._build_split_generators()
+
+    # these two methods make the class picklable
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # generators themselves are not picklable
+        state.pop("_split_generators", None)
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._build_split_generators()
+
+    def _build_split_generators(self):
         self._split_generators = [
             self.splits_generator(
                 X_train=X,
                 y_train=y,
-                cross_val_splits=cross_val_splits,
-                stratify_split=is_classification,
-                seed=RANDOM_SEED + i,  # ensure different seeds per dataset
+                cross_val_splits=self.cross_val_splits,
+                stratify_split=self.is_classification,
+                seed=RANDOM_SEED + i,
             )
-            for i, (X, y) in enumerate(datasets)
+            for i, (X, y) in enumerate(self.datasets)
         ]
-
     @staticmethod
     def splits_generator(
         *,

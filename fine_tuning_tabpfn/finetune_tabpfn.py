@@ -38,7 +38,6 @@ if TYPE_CHECKING:
     from tabpfn.model.transformer import PerFeatureTransformer
     from torch.nn.modules.loss import _Loss
     from torch.optim.optimizer import Optimizer
-from tabpfn.model.gatedtransformer import GatedPerFeatureTransformer
 logger = logging.getLogger(__name__)
 
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -58,8 +57,10 @@ def fine_tune_tabpfn(
     finetuning_config: dict,
     validation_metric: SupportedValidationMetric,
     # Input Data
-    X_train: pd.DataFrame,
-    y_train: pd.Series,
+    X_pretraining_datasets = [],
+    y_pretraining_datasets = [],
+    X_icl_test: pd.DataFrame,
+    y_icl_test: pd.Series,
     categorical_features_index: list[int] | None,
     task_type: TaskType,
     device: SupportedDevice,
@@ -68,8 +69,6 @@ def fine_tune_tabpfn(
     X_val: pd.DataFrame | None = None,
     y_val: pd.Series | None = None,
     random_seed: int = 42,
-    gated: bool = False,
-    extra_configuration=None,
     # Other
     logger_level: int = 20,
     show_training_curve: bool = False,
@@ -156,8 +155,6 @@ def fine_tune_tabpfn(
         version="v2",
         download=True,
         model_seed=random_seed,
-        gated=gated,
-        extra_configuration=extra_configuration
     )
     model.criterion = criterion
     checkpoint_config = checkpoint_config.__dict__
@@ -171,18 +168,15 @@ def fine_tune_tabpfn(
 
     # Setup validation
     create_val_data = (X_val is None) and (y_val is None)
-    n_classes = len(np.unique(y_train)) if is_classification else None
-    n_samples = len(X_train)
+    n_classes = len(np.unique(y_icl_test)) if is_classification else None
+    n_samples = len(X_icl_test)
     if not create_val_data:
         n_samples += len(X_val)
     else:
-
         from .training_utils.validation_utils import create_val_data
-        raise Exception("Must provide validation data!")
-
         X_train, X_val, y_train, y_val = create_val_data(
-            X_train=X_train,
-            y_train=y_train,
+            X_train=X_icl_test,
+            y_train=y_icl_test,
             rng=rng,
             n_samples=n_samples,
             is_classification=is_classification,
@@ -280,8 +274,8 @@ def fine_tune_tabpfn(
 
     # Setup data loader
     data_loader = get_data_loader(
-        X_train=X_train,
-        y_train=y_train,
+        Xs=X_pretraining_datasets,
+        ys=y_pretraining_datasets,
         batch_size=fts.batch_size,
         max_steps=fts.max_steps,
         torch_rng=torch_rng,
